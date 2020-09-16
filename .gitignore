@@ -1,0 +1,5 @@
+### Github File Push Ignore
+
+*.fbx
+*.json
+*.xml
