@@ -125,6 +125,14 @@ def _get_ref(cl,ol,id_,k=None):
 
 
 
+def _get_model(cl,ol,id_):
+	m=_get_ref(cl,ol,id_)
+	o={"name":m["name"]}
+	print(o,_get_child(m,"Properties70"))
+	return o
+
+
+
 for k in os.listdir("."):
 	if (k[-4:]==".fbx"):
 		with open(k,"rb") as f:
@@ -136,6 +144,7 @@ for k in os.listdir("."):
 			gs=None
 			ol=None
 			cl=None
+			df=None
 			as_=None
 			while (i<len(dt)):
 				i,e=parse(dt,i)
@@ -149,6 +158,12 @@ for k in os.listdir("."):
 						ol[k["data"][0]]={"id":k["data"][0],"type":k["name"],"name":k["data"][1],"children":k["children"]}
 						if (k["name"]=="AnimationStack"):
 							as_=ol[k["data"][0]]
+				elif (e["name"]=="Definitions"):
+					df={}
+					for k in e["children"]:
+						if (k["name"]=="ObjectType" and k["data"][0]!="GlobalSettings"):
+							df[k["data"][0]]=_get_child(k,"PropertyTemplate")
+							raise RuntimeError
 				elif (e["name"]=="Connections"):
 					cl={}
 					for c in e["children"]:
@@ -156,16 +171,15 @@ for k in os.listdir("."):
 							cl[c["data"][2]]=[]
 						cl[c["data"][2]]+=[[c["data"][1],(None if len(c["data"])==3 else c["data"][3])]]
 			fps=["default",120,100,60,50,48,30,30,"drop",29.97,25,24,"1000 milli/s",23.976,"custom",96,72,59.94,"time-modes"][_get_prop70(_get_child(gs,"Properties70"),"TimeMode")[0]]
-			o={"name":as_["name"],"fps":fps,"start_frame":_get_frame(fps,_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStart")[0]),"end_frame":_get_frame(fps,_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStop")[0]),"nodes":[]}
-			for l in _get_ref(cl,ol,as_["id"],-1):
-				for n in _get_ref(cl,ol,l["id"],-1):
-					o["nodes"]+=[{"name":n["name"],"channels":{}}]
-					for p in _get_child(n,"Properties70")["children"]:
-						o["nodes"][-1]["channels"][p["data"][0]]=[]
-						c=_get_ref(cl,ol,n["id"],p["data"][0])
-						print(c)
-						kl=_get_child(c,"KeyTime")["data"][0]
-						kv=_get_child(c,"KeyValueFloat")["data"][0]
-						for i in range(0,len(kl)):
-							o["nodes"][-1]["channels"][p["data"][0]]+=[(_get_frame(fps,kl[i]),kv[i])]
+			o={"name":as_["name"],"fps":fps,"start_frame":_get_frame(fps,_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStart")[0]),"end_frame":_get_frame(fps,_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStop")[0]),"model":_get_model(cl,ol,0)}
+			# for l in _get_ref(cl,ol,as_["id"],-1):
+			# 	for n in _get_ref(cl,ol,l["id"],-1):
+			# 		o["nodes"]+=[{"name":n["name"],"channels":{}}]
+			# 		for p in _get_child(n,"Properties70")["children"]:
+			# 			o["nodes"][-1]["channels"][p["data"][0]]=[]
+			# 			c=_get_ref(cl,ol,n["id"],p["data"][0])
+			# 			kl=_get_child(c,"KeyTime")["data"][0]
+			# 			kv=_get_child(c,"KeyValueFloat")["data"][0]
+			# 			for i,t in enumerate(kl):
+			# 				o["nodes"][-1]["channels"][p["data"][0]]+=[(_get_frame(fps,t),kv[i])]
 			f.write(json.dumps(o,indent=4,sort_keys=False).replace("    ","\t"))
