@@ -155,12 +155,35 @@ def _write_anim(f,off,cl,ol,m):
 					lk=_get_frame(off,v)
 				if (len(dt[("" if et=="Lcl Translation" else "r")+t[2].lower()])>1):
 					fl|=(1<<(ord(t[2].lower())-120+(0 if et=="Lcl Translation" else 3)))
-	f.write(len(m["name"][:255]).to_bytes(1,"big")+bytes(m["name"],"utf-8")+fl.to_bytes(1,"big")+c.to_bytes(1,"big"))
-	for k in dt.values():
-		f.write(struct.pack(">"+"f"*len(k),*k))
+	f.write(struct.pack(f">B{len(m['name'][:255])}sBB{sum([len(e) for e in dt.values()])}f",len(m["name"][:255]),bytes(m["name"][:255],"utf-8"),fl,c,*dt["x"],*dt["y"],*dt["z"],*dt["rx"],*dt["ry"],*dt["rz"]))
 	for et,e in l:
 		if (e["type"]=="Model"):
 			_write_anim(f,off,cl,ol,e)
+
+
+
+def _write_pose(f,cl,ol,p):
+	l={}
+	for k in p["children"]:
+		if (k["name"]=="PoseNode"):
+			k=_get_ref(cl,ol,_get_child(k,"Node")["data"][0])
+			if (k["type"]=="Geometry"):
+				print("G")
+			elif (k["type"]=="NodeAttribute"):
+				if (k["name"][:-len(k["name"].split("::")[-1])-2] not in list(l.keys())):
+					l[k["name"][:-len(k["name"].split("::")[-1])-2]]={}
+				l[k["name"][:-len(k["name"].split("::")[-1])-2]]["len"]=_get_prop70(_get_child(k,"Properties70"),"Size")[0]
+			elif (k["type"]=="Model"):
+				if (k["name"][:-len(k["name"].split("::")[-1])-2] not in list(l.keys())):
+					l[k["name"][:-len(k["name"].split("::")[-1])-2]]={}
+				# l[k["name"][:-len(k["name"].split("::")[-1])-2]]=
+				for et,e in _get_ref(cl,ol,k["id"],-1):
+					print(k["name"],e["name"],et)
+				# print("M",k["name"][:-len(k["name"].split("::")[-1])-2])
+			else:
+				raise RuntimeError(k["type"])
+	# print(l)
+	f.write(struct.pack(">I",_get_child(p,"NbPoseNodes")["data"][0]))
 
 
 
@@ -176,7 +199,8 @@ for fp in os.listdir("."):
 		ol=None
 		cl=None
 		df=None
-		as_=None
+		t=0
+		p=None
 		while (i<len(dt)):
 			i,e=_parse(dt,i)
 			if (i==None):
@@ -188,7 +212,10 @@ for fp in os.listdir("."):
 				for k in e["children"]:
 					ol[k["data"][0]]={"id":k["data"][0],"type":k["name"],"name":k["data"][1],"children":k["children"]}
 					if (k["name"]=="AnimationStack"):
-						as_=ol[k["data"][0]]
+						t|=1
+					if (k["name"]=="Pose"):
+						t|=2
+						p=ol[k["data"][0]]
 			elif (e["name"]=="Definitions"):
 				df={}
 				for k in e["children"]:
@@ -217,10 +244,10 @@ for fp in os.listdir("."):
 					kn+=[e["data"][0]]
 					ch["children"]+=[e]
 		off=_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStart")[0]
-		if (as_!=None):
+		if (t&1!=0):
 			with open(f"{fp[:-4]}.anm","wb") as f:
-				f.write(_get_frame(off,_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStop")[0]).to_bytes(2,"big"))
+				f.write(struct.pack(">H",_get_frame(off,_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStop")[0])))
 				_write_anim(f,off,cl,ol,_get_ref(cl,ol,0))
-		else:
+		if (t&2!=0):
 			with open(f"{fp[:-4]}.mdl","wb") as f:
-				_write_anim(f,off,cl,ol,_get_ref(cl,ol,0))
+				_write_pose(f,cl,ol,p)
