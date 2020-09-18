@@ -2,7 +2,7 @@ import os
 import struct
 import zlib
 import math
-from panda3d.core import LPoint3d,Triangulator3
+import panda3d.core
 
 
 
@@ -206,7 +206,7 @@ def _write_pose(f,cl,ol,p):
 						if (len(c)==3):
 							il+=sorted(c)
 						else:
-							tc=Triangulator3()
+							tc=panda3d.core.Triangulator3()
 							lvl=[]
 							for n in c:
 								lvl+=[n]
