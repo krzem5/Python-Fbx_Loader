@@ -2,6 +2,7 @@ import os
 import struct
 import zlib
 import math
+from panda3d.core import LPoint3d,Triangulator3
 
 
 
@@ -155,7 +156,8 @@ def _write_anim(f,off,cl,ol,m):
 					lk=_get_frame(off,v)
 				if (len(dt[("" if et=="Lcl Translation" else "r")+t[2].lower()])>1):
 					fl|=(1<<(ord(t[2].lower())-120+(0 if et=="Lcl Translation" else 3)))
-	f.write(struct.pack(f">B{len(m['name'][:255])}sBB{sum([len(e) for e in dt.values()])}f",len(m["name"][:255]),bytes(m["name"][:255],"utf-8"),fl,c,*dt["x"],*dt["y"],*dt["z"],*dt["rx"],*dt["ry"],*dt["rz"]))
+	nm=m["name"][:-len(m["name"].split("::")[-1])-2]
+	f.write(struct.pack(f">B{len(nm[:255])}sBB{sum([len(e) for e in dt.values()])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),fl,c,*dt["x"],*dt["y"],*dt["z"],*dt["rx"],*dt["ry"],*dt["rz"]))
 	for et,e in l:
 		if (e["type"]=="Model"):
 			_write_anim(f,off,cl,ol,e)
@@ -176,9 +178,10 @@ def _write_pose(f,cl,ol,p):
 		if (k["name"][:-len(k["name"].split("::")[-1])-2] not in list(l.keys())):
 			l[k["name"][:-len(k["name"].split("::")[-1])-2]]={}
 		l[k["name"][:-len(k["name"].split("::")[-1])-2]]["name"]=k["name"]
+		g=[[],[],[],[],[]]
 		if (anr==True):
 			nr+=[k["name"][:-len(k["name"].split("::")[-1])-2]]
-		for et,e in _get_refs(cl,ol,k["id"],-1):
+		for _,e in _get_refs(cl,ol,k["id"],-1):
 			if (e["type"]=="NodeAttribute"):
 				l[k["name"][:-len(k["name"].split("::")[-1])-2]]["len"]=_get_prop70(_get_child(e,"Properties70"),"Size")[0]
 			elif (e["type"]=="Model"):
@@ -186,19 +189,71 @@ def _write_pose(f,cl,ol,p):
 					ch[k["name"][:-len(k["name"].split("::")[-1])-2]]=[e["name"][:-len(e["name"].split("::")[-1])-2]]
 				elif (e["name"][:-len(e["name"].split("::")[-1])-2] not in ch[k["name"][:-len(k["name"].split("::")[-1])-2]]):
 					ch[k["name"][:-len(k["name"].split("::")[-1])-2]]+=[e["name"][:-len(e["name"].split("::")[-1])-2]]
-				l,ch,nr=_read_mdl(cl,ol,l,ch,nr,e,True)
+				l,ch,nr,tg=_read_mdl(cl,ol,l,ch,nr,e,True)
+				for i,j in enumerate(tg):
+					g[i]+=j
 			elif (e["type"]=="Geometry"):
-				pass
+				vl=_get_child(e,"Vertices")["data"][0]
+				nl=_get_child(_get_child(e,"LayerElementNormal"),"Normals")["data"][0]
+				uvl=_get_child(_get_child(e,"LayerElementUV"),"UV")["data"][0]
+				il_=_get_child(e,"PolygonVertexIndex")["data"][0]
+				i=0
+				c=[]
+				il=[]
+				while (i<len(il_)):
+					if (il_[i]<0):
+						c+=[~il_[i]]
+						if (len(c)==3):
+							il+=sorted(c)
+						else:
+							tc=Triangulator3()
+							lvl=[]
+							for n in c:
+								lvl+=[n]
+								tc.addPolygonVertex(tc.addVertex(*vl[n*3:n*3+3]))
+							tc.triangulate()
+							for n in range(0,tc.getNumTriangles()):
+								il+=sorted([lvl[tc.getTriangleV0(n)],lvl[tc.getTriangleV1(n)],lvl[tc.getTriangleV2(n)]])
+						c=[]
+					else:
+						c+=[il_[i]]
+					i+=1
+				g[0]+=vl
+				g[1]+=nl
+				g[2]+=uvl
+				g[3]+=[e+(len(g[0])-len(vl))//3 for e in il]
+				g[4]+=[e]
 			elif (e["type"]=="Material"):
 				pass
 			elif (e["type"]=="AnimationCurveNode"):
 				pass
 			else:
 				raise RuntimeError(e["type"])
-		return (l,ch,nr)
+		return (l,ch,nr,g)
+	def _read_deform(cl,ol,l,k):
+		l[k["name"][:-len(k["name"].split("::")[-1])-2]]["deform"]={"data":([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1] if _get_child(k,"Transform")==None else _get_child(k,"Transform")["data"][0]),**({"indexes":_get_child(k,"Indexes")["data"][0],"weights":_get_child(k,"Weights")["data"][0]} if _get_child(k,"Indexes")!=None else {"indexes":[],"weights":[]})}
+		if (k["id"] in list(cl.keys())):
+			for _,e in _get_refs(cl,ol,k["id"],-1):
+				if (e["type"]=="Deformer"):
+					l=_read_deform(cl,ol,l,e)
+				elif (e["type"]=="Model"):
+					continue
+				else:
+					raise RuntimeError(e["type"])
+		return l
+	def _write_mdl(f,k):
+		if ("children" not in list(k.keys())):
+			k["children"]=[]
+		if ("deform" not in list(k.keys())):
+			k["deform"]={"data":[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],"indexes":[],"weights":[]}
+		nm=k["name"][:-len(k["name"].split("::")[-1])-2]
+		f.write(struct.pack(f">B{len(nm[:255])}sfB16fI{len(k['deform']['indexes'])}H{len(k['deform']['indexes'])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),k["len"],len(k["children"]),*k["deform"]["data"],len(k["deform"]["indexes"]),*k["deform"]["indexes"],*k["deform"]["weights"]))
+		for e in k["children"]:
+			_write_mdl(f,e)
 	l={}
 	ch={}
 	nr=[]
+	g=[[],[],[],[],[]]
 	for k in p["children"]:
 		if (k["name"]=="PoseNode"):
 			k=ol[_get_child(k,"Node")["data"][0]]
@@ -207,15 +262,20 @@ def _write_pose(f,cl,ol,p):
 					l[k["name"][:-len(k["name"].split("::")[-1])-2]]={}
 				l[k["name"][:-len(k["name"].split("::")[-1])-2]]["len"]=_get_prop70(_get_child(k,"Properties70"),"Size")[0]
 			elif (k["type"]=="Model"):
-				l,ch,nr=_read_mdl(cl,ol,l,ch,nr,k,False)
+				l,ch,nr,tg=_read_mdl(cl,ol,l,ch,nr,k,False)
+				for i,j in enumerate(tg):
+					g[i]+=j
 			else:
 				raise RuntimeError(k["type"])
+	for k in g[4]:
+		for _,e in _get_refs(cl,ol,k["id"],-1):
+			l=_read_deform(cl,ol,l,e)
 	for k in [e for e in l.keys() if e not in nr]:
 		l=_join(l,ch,k)
 	l={k:v for k,v in l.items() if "len" in list(v.keys())}
-	with open("tmp.json","w") as tf:
-		tf.write(__import__("json").dumps(l,indent=4,sort_keys=False).replace("    ","\t"))
-	f.write(struct.pack(">I",_get_child(p,"NbPoseNodes")["data"][0]))
+	f.write(struct.pack(">B",len(list(l.keys()))))
+	for k in l.values():
+		_write_mdl(f,k)
 
 
 
