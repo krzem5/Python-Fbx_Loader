@@ -115,7 +115,7 @@ def _get_frame(off,f):
 
 
 
-def _get_ref(cl,ol,id_,k=None):
+def _get_refs(cl,ol,id_,k=None):
 	if (k==-1):
 		return [(e[1],ol[e[0]]) for e in cl[id_] if e[0] in list(ol.keys())]
 	for e in cl[id_]:
@@ -128,7 +128,7 @@ def _get_ref(cl,ol,id_,k=None):
 def _write_anim(f,off,cl,ol,m):
 	p=_get_prop70(_get_child(m,"Properties70"),"Lcl Translation")
 	r=_get_prop70(_get_child(m,"Properties70"),"Lcl Rotation")
-	l=_get_ref(cl,ol,m["id"],-1)[:255]
+	l=_get_refs(cl,ol,m["id"],-1)[:255]
 	dt={"x":[p[0]],"y":[p[1]],"z":[p[2]],"rx":[r[0]],"ry":[r[1]],"rz":[r[2]]}
 	fl=0
 	c=0
@@ -136,7 +136,7 @@ def _write_anim(f,off,cl,ol,m):
 		if (e["type"]=="Model"):
 			c+=1
 		elif (e["type"]=="AnimationCurveNode"):
-			al=_get_ref(cl,ol,e["id"],-1)
+			al=_get_refs(cl,ol,e["id"],-1)
 			for t,k in al:
 				if (len(t)!=3 or t[:2]!="d|" or t[2] not in "xyzXYZ"):
 					raise RuntimeError
@@ -163,26 +163,58 @@ def _write_anim(f,off,cl,ol,m):
 
 
 def _write_pose(f,cl,ol,p):
+	def _join(l,ch,k):
+		if (k in list(ch.keys())):
+			if ("children" not in list(l[k].keys())):
+				l[k]["children"]=[]
+			for e in ch[k]:
+				l=_join(l,ch,e)
+				l[k]["children"]+=[l[e]]
+				del l[e]
+		return l
+	def _read_mdl(cl,ol,l,ch,nr,k,anr):
+		if (k["name"][:-len(k["name"].split("::")[-1])-2] not in list(l.keys())):
+			l[k["name"][:-len(k["name"].split("::")[-1])-2]]={}
+		l[k["name"][:-len(k["name"].split("::")[-1])-2]]["name"]=k["name"]
+		if (anr==True):
+			nr+=[k["name"][:-len(k["name"].split("::")[-1])-2]]
+		for et,e in _get_refs(cl,ol,k["id"],-1):
+			if (e["type"]=="NodeAttribute"):
+				l[k["name"][:-len(k["name"].split("::")[-1])-2]]["len"]=_get_prop70(_get_child(e,"Properties70"),"Size")[0]
+			elif (e["type"]=="Model"):
+				if (k["name"][:-len(k["name"].split("::")[-1])-2] not in list(ch.keys())):
+					ch[k["name"][:-len(k["name"].split("::")[-1])-2]]=[e["name"][:-len(e["name"].split("::")[-1])-2]]
+				elif (e["name"][:-len(e["name"].split("::")[-1])-2] not in ch[k["name"][:-len(k["name"].split("::")[-1])-2]]):
+					ch[k["name"][:-len(k["name"].split("::")[-1])-2]]+=[e["name"][:-len(e["name"].split("::")[-1])-2]]
+				l,ch,nr=_read_mdl(cl,ol,l,ch,nr,e,True)
+			elif (e["type"]=="Geometry"):
+				pass
+			elif (e["type"]=="Material"):
+				pass
+			elif (e["type"]=="AnimationCurveNode"):
+				pass
+			else:
+				raise RuntimeError(e["type"])
+		return (l,ch,nr)
 	l={}
+	ch={}
+	nr=[]
 	for k in p["children"]:
 		if (k["name"]=="PoseNode"):
-			k=_get_ref(cl,ol,_get_child(k,"Node")["data"][0])
-			if (k["type"]=="Geometry"):
-				print("G")
-			elif (k["type"]=="NodeAttribute"):
+			k=ol[_get_child(k,"Node")["data"][0]]
+			if (k["type"]=="NodeAttribute"):
 				if (k["name"][:-len(k["name"].split("::")[-1])-2] not in list(l.keys())):
 					l[k["name"][:-len(k["name"].split("::")[-1])-2]]={}
 				l[k["name"][:-len(k["name"].split("::")[-1])-2]]["len"]=_get_prop70(_get_child(k,"Properties70"),"Size")[0]
 			elif (k["type"]=="Model"):
-				if (k["name"][:-len(k["name"].split("::")[-1])-2] not in list(l.keys())):
-					l[k["name"][:-len(k["name"].split("::")[-1])-2]]={}
-				# l[k["name"][:-len(k["name"].split("::")[-1])-2]]=
-				for et,e in _get_ref(cl,ol,k["id"],-1):
-					print(k["name"],e["name"],et)
-				# print("M",k["name"][:-len(k["name"].split("::")[-1])-2])
+				l,ch,nr=_read_mdl(cl,ol,l,ch,nr,k,False)
 			else:
 				raise RuntimeError(k["type"])
-	# print(l)
+	for k in [e for e in l.keys() if e not in nr]:
+		l=_join(l,ch,k)
+	l={k:v for k,v in l.items() if "len" in list(v.keys())}
+	with open("tmp.json","w") as tf:
+		tf.write(__import__("json").dumps(l,indent=4,sort_keys=False).replace("    ","\t"))
 	f.write(struct.pack(">I",_get_child(p,"NbPoseNodes")["data"][0]))
 
 
@@ -247,7 +279,7 @@ for fp in os.listdir("."):
 		if (t&1!=0):
 			with open(f"{fp[:-4]}.anm","wb") as f:
 				f.write(struct.pack(">H",_get_frame(off,_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStop")[0])))
-				_write_anim(f,off,cl,ol,_get_ref(cl,ol,0))
+				_write_anim(f,off,cl,ol,_get_refs(cl,ol,0))
 		if (t&2!=0):
 			with open(f"{fp[:-4]}.mdl","wb") as f:
 				_write_pose(f,cl,ol,p)
