@@ -178,10 +178,10 @@ def _write_pose(f,cl,ol,p):
 		if (k["name"][:-len(k["name"].split("::")[-1])-2] not in list(l.keys())):
 			l[k["name"][:-len(k["name"].split("::")[-1])-2]]={}
 		l[k["name"][:-len(k["name"].split("::")[-1])-2]]["name"]=k["name"]
-		g=[[],[],[],[],[]]
+		g=[[],[],[],[],[],[]]
 		if (anr==True):
 			nr+=[k["name"][:-len(k["name"].split("::")[-1])-2]]
-		for _,e in _get_refs(cl,ol,k["id"],-1):
+		for et,e in _get_refs(cl,ol,k["id"],-1):
 			if (e["type"]=="NodeAttribute"):
 				l[k["name"][:-len(k["name"].split("::")[-1])-2]]["len"]=_get_prop70(_get_child(e,"Properties70"),"Size")[0]
 			elif (e["type"]=="Model"):
@@ -196,6 +196,7 @@ def _write_pose(f,cl,ol,p):
 				vl=_get_child(e,"Vertices")["data"][0]
 				nl=_get_child(_get_child(e,"LayerElementNormal"),"Normals")["data"][0]
 				uvl=_get_child(_get_child(e,"LayerElementUV"),"UV")["data"][0]
+				uvil=_get_child(_get_child(e,"LayerElementUV"),"UVIndex")["data"][0]
 				il_=_get_child(e,"PolygonVertexIndex")["data"][0]
 				i=0
 				c=[]
@@ -222,11 +223,21 @@ def _write_pose(f,cl,ol,p):
 				g[1]+=nl
 				g[2]+=uvl
 				g[3]+=[e+(len(g[0])-len(vl))//3 for e in il]
-				g[4]+=[e]
+				g[4]+=uvil
+				g[5]+=[e]
 			elif (e["type"]=="Material"):
 				pass
 			elif (e["type"]=="AnimationCurveNode"):
-				pass
+				if (et=="Lcl Translation"):
+					l[k["name"][:-len(k["name"].split("::")[-1])-2]]["dx"]=_get_prop70(_get_child(e,"Properties70"),"d|X")[0]
+					l[k["name"][:-len(k["name"].split("::")[-1])-2]]["dy"]=_get_prop70(_get_child(e,"Properties70"),"d|Y")[0]
+					l[k["name"][:-len(k["name"].split("::")[-1])-2]]["dz"]=_get_prop70(_get_child(e,"Properties70"),"d|Z")[0]
+				elif (et=="Lcl Rotation"):
+					l[k["name"][:-len(k["name"].split("::")[-1])-2]]["drx"]=_get_prop70(_get_child(e,"Properties70"),"d|X")[0]
+					l[k["name"][:-len(k["name"].split("::")[-1])-2]]["dry"]=_get_prop70(_get_child(e,"Properties70"),"d|Y")[0]
+					l[k["name"][:-len(k["name"].split("::")[-1])-2]]["drz"]=_get_prop70(_get_child(e,"Properties70"),"d|Z")[0]
+				else:
+					raise RuntimeError(et)
 			else:
 				raise RuntimeError(e["type"])
 		return (l,ch,nr,g)
@@ -246,14 +257,22 @@ def _write_pose(f,cl,ol,p):
 			k["children"]=[]
 		if ("deform" not in list(k.keys())):
 			k["deform"]={"data":[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],"indexes":[],"weights":[]}
+		if ("dx" not in list(k.keys())):
+			k["dx"]=0
+			k["dy"]=0
+			k["dz"]=0
+		if ("drx" not in list(k.keys())):
+			k["drx"]=0
+			k["dry"]=0
+			k["drz"]=0
 		nm=k["name"][:-len(k["name"].split("::")[-1])-2]
-		f.write(struct.pack(f">B{len(nm[:255])}sfB16fI{len(k['deform']['indexes'])}H{len(k['deform']['indexes'])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),k["len"],len(k["children"]),*k["deform"]["data"],len(k["deform"]["indexes"]),*k["deform"]["indexes"],*k["deform"]["weights"]))
+		f.write(struct.pack(f">B{len(nm[:255])}sfB22fI{len(k['deform']['indexes'])}H{len(k['deform']['indexes'])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),k["len"],len(k["children"]),k["dx"],k["dy"],k["dz"],k["drx"],k["dry"],k["drz"],*k["deform"]["data"],len(k["deform"]["indexes"]),*k["deform"]["indexes"],*k["deform"]["weights"]))
 		for e in k["children"]:
 			_write_mdl(f,e)
 	l={}
 	ch={}
 	nr=[]
-	g=[[],[],[],[],[]]
+	g=[[],[],[],[],[],[]]
 	for k in p["children"]:
 		if (k["name"]=="PoseNode"):
 			k=ol[_get_child(k,"Node")["data"][0]]
@@ -267,13 +286,13 @@ def _write_pose(f,cl,ol,p):
 					g[i]+=j
 			else:
 				raise RuntimeError(k["type"])
-	for k in g[4]:
+	for k in g[5]:
 		for _,e in _get_refs(cl,ol,k["id"],-1):
 			l=_read_deform(cl,ol,l,e)
 	for k in [e for e in l.keys() if e not in nr]:
 		l=_join(l,ch,k)
 	l={k:v for k,v in l.items() if "len" in list(v.keys())}
-	f.write(struct.pack(">B",len(list(l.keys()))))
+	f.write(struct.pack(f">BIIII{len(g[0])+len(g[4])*3+len(g[2])}f{len(g[3])+len(g[4])}H",len(list(l.keys())),len(g[0]),len(g[2]),len(g[3]),len(g[4]),*g[0],*g[1],*g[2],*g[3],*g[4]))
 	for k in l.values():
 		_write_mdl(f,k)
 
