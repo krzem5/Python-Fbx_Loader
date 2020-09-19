@@ -203,7 +203,7 @@ def _write_pose(f,cl,ol,p):
 				il=[]
 				while (i<len(il_)):
 					if (il_[i]<0):
-						c+=[~il_[i]]
+						c+=[(~il_[i],i+0)]
 						if (len(c)==3):
 							il+=sorted(c)
 						else:
@@ -211,19 +211,19 @@ def _write_pose(f,cl,ol,p):
 							lvl=[]
 							for n in c:
 								lvl+=[n]
-								tc.addPolygonVertex(tc.addVertex(*vl[n*3:n*3+3]))
+								tc.addPolygonVertex(tc.addVertex(*vl[n[0]*3:n[0]*3+3]))
 							tc.triangulate()
 							for n in range(0,tc.getNumTriangles()):
-								il+=sorted([lvl[tc.getTriangleV0(n)],lvl[tc.getTriangleV1(n)],lvl[tc.getTriangleV2(n)]])
+								il+=sorted([lvl[tc.getTriangleV0(n)],lvl[tc.getTriangleV1(n)],lvl[tc.getTriangleV2(n)]],key=lambda e:e[0])
 						c=[]
 					else:
-						c+=[il_[i]]
+						c+=[(il_[i],i+0)]
 					i+=1
 				g[0]+=vl
 				g[1]+=nl
 				g[2]+=uvl
-				g[3]+=[e+(len(g[0])-len(vl))//3 for e in il]
-				g[4]+=uvil
+				g[3]+=[(se[0]+(len(g[0])-len(vl))//3,se[1]) for se in il]
+				g[4]+=[se+(len(g[2])-len(uvl))//3 for se in uvil]
 				g[5]+=[e]
 			elif (e["type"]=="Material"):
 				pass
@@ -252,7 +252,7 @@ def _write_pose(f,cl,ol,p):
 				else:
 					raise RuntimeError(e["type"])
 		return l
-	def _write_mdl(f,k):
+	def _write_mdl(f,k,r=True):
 		if ("children" not in list(k.keys())):
 			k["children"]=[]
 		if ("deform" not in list(k.keys())):
@@ -265,10 +265,11 @@ def _write_pose(f,cl,ol,p):
 			k["drx"]=0
 			k["dry"]=0
 			k["drz"]=0
+		k["len"]*=(1 if r==False and len(k["children"])==0 else 100)
 		nm=k["name"][:-len(k["name"].split("::")[-1])-2]
 		f.write(struct.pack(f">B{len(nm[:255])}sfB22fI{len(k['deform']['indexes'])}H{len(k['deform']['indexes'])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),k["len"],len(k["children"]),k["dx"],k["dy"],k["dz"],k["drx"],k["dry"],k["drz"],*k["deform"]["data"],len(k["deform"]["indexes"]),*k["deform"]["indexes"],*k["deform"]["weights"]))
 		for e in k["children"]:
-			_write_mdl(f,e)
+			_write_mdl(f,e,False)
 	l={}
 	ch={}
 	nr=[]
@@ -292,7 +293,19 @@ def _write_pose(f,cl,ol,p):
 	for k in [e for e in l.keys() if e not in nr]:
 		l=_join(l,ch,k)
 	l={k:v for k,v in l.items() if "len" in list(v.keys())}
-	f.write(struct.pack(f">BIIII{len(g[0])+len(g[4])*3+len(g[2])}f{len(g[3])+len(g[4])}H",len(list(l.keys())),len(g[0]),len(g[2]),len(g[3]),len(g[4]),*g[0],*g[1],*g[2],*g[3],*g[4]))
+	dtll=[]
+	il=[]
+	vhl=[]
+	for i,k in enumerate(g[3]):
+		v=(*g[0][k[0]*3:k[0]*3+3],*g[1][k[1]*3:k[1]*3+3],*g[2][g[4][k[1]]*2:g[4][k[1]]*2+2])
+		if (hash(v) not in vhl):
+			print(v)
+			dtll+=v
+			il+=[len(vhl)]
+			vhl+=[hash(v)]
+		else:
+			il+=[vhl.index(hash(v))]
+	f.write(struct.pack(f">BII{len(dtll)}f{len(il)}H",len(list(l.keys())),len(dtll)//8,len(il),*dtll,*il))
 	for k in l.values():
 		_write_mdl(f,k)
 
