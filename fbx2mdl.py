@@ -130,7 +130,7 @@ def _get_refs(cl,ol,id_,k=None):
 def _write_anim(f,off,cl,ol,m):
 	p=_get_prop70(_get_child(m,"Properties70"),"Lcl Translation")
 	r=_get_prop70(_get_child(m,"Properties70"),"Lcl Rotation")
-	l=_get_refs(cl,ol,m["id"],-1)[:255]
+	l=_get_refs(cl,ol,m["id"],-1)
 	dt={"x":[p[0]],"y":[p[1]],"z":[p[2]],"rx":[r[0]],"ry":[r[1]],"rz":[r[2]]}
 	fl=0
 	c=0
