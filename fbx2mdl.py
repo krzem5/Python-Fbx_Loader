@@ -17,7 +17,7 @@ def _r_arr(dt,i,f):
 	o=dt[i+12:i+l+12]
 	if (e==1):
 		o=zlib.decompress(o)
-	o=list(struct.unpack("<"+f*ln,o))
+	o=list(struct.unpack(f"<{ln}{f}",o))
 	return (i+l+12,o)
 
 
@@ -78,7 +78,7 @@ def _parse(dt,i):
 			i,el=_r_arr(dt,i+1,"c")
 			o["data"]+=[el]
 		else:
-			raise RuntimeError("AAA")
+			raise RuntimeError(chr(dt[i]))
 	if (i<e):
 		o["children"]=[]
 		while (i<e-BLOCK_SENTINEL_LENGTH):
@@ -113,7 +113,7 @@ def _get_prop70(o,nm):
 
 
 def _get_frame(off,f):
-	return math.ceil(((f-off)//46186158)/(1000/60))
+	return math.ceil(((f-off[0])//46186158)/(1000/60))
 
 
 
@@ -147,6 +147,8 @@ def _write_anim(f,off,cl,ol,m):
 				dt[("" if et=="Lcl Translation" else "r")+t[2].lower()]=([] if kl[0]==0 else [(0,dt[("" if et=="Lcl Translation" else "r")+t[2].lower()])])
 				lk=None
 				for i,v in enumerate(kl):
+					if (lk!=None and _get_frame(off,v)<=lk):
+						continue
 					if (lk!=None and lk<_get_frame(off,v)-1):
 						j=_get_frame(off,kl[i-1])+1
 						ln=_get_frame(off,v)-_get_frame(off,kl[i-1])
@@ -155,9 +157,21 @@ def _write_anim(f,off,cl,ol,m):
 							j+=1
 					dt[("" if et=="Lcl Translation" else "r")+t[2].lower()]+=[kv[i]]
 					lk=_get_frame(off,v)
+				if (len(kl)>1 and lk!=None and lk<off[1]+1):
+					j=lk+1
+					ln=off[1]+1-lk
+					while (j!=off[1]+1):
+						dt[("" if et=="Lcl Translation" else "r")+t[2].lower()]+=[kv[i-1]+j/ln*(kv[i]-kv[i-1])]
+						j+=1
 				if (len(dt[("" if et=="Lcl Translation" else "r")+t[2].lower()])>1):
 					fl|=(1<<(ord(t[2].lower())-120+(0 if et=="Lcl Translation" else 3)))
 	nm=m["name"][:-len(m["name"].split("::")[-1])-2]
+	for k in ("rx","ry","rz"):
+		dt[k]=[e/180*math.pi for e in dt[k]]
+	for ek,ev in dt.items():
+		if (len(ev)!=1 and len(ev)!=off[1]+1):
+			print(len(ev),off[1])
+			raise RuntimeError
 	f.write(struct.pack(f">B{len(nm[:255])}sBB{sum([len(e) for e in dt.values()])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),fl,c,*dt["x"],*dt["y"],*dt["z"],*dt["rx"],*dt["ry"],*dt["rz"]))
 	for et,e in l:
 		if (e["type"]=="Model"):
@@ -291,6 +305,7 @@ def _write_poses(f,cl,ol,pl):
 			k["drz"]=0
 		if ("mat" not in list(k.keys())):
 			k["mat"]=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]
+		k["mat"]=[k["mat"][0],k["mat"][4],k["mat"][8],k["mat"][12],k["mat"][1],k["mat"][5],k["mat"][9],k["mat"][13],k["mat"][2],k["mat"][6],k["mat"][10],k["mat"][14],k["mat"][3],k["mat"][7],k["mat"][11],k["mat"][15]]
 		nm=_name(k["name"])
 		f.write(struct.pack(f">B{len(nm[:255])}sfB38fI{len(k['deform']['indexes'])}H{len(k['deform']['indexes'])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),k["len"],len(k["children"]),k["dx"],k["dy"],k["dz"],k["drx"],k["dry"],k["drz"],*k["mat"],*k["deform"]["data"],len(k["deform"]["indexes"]),*k["deform"]["indexes"],*k["deform"]["weights"]))
 		for e in k["children"]:
@@ -378,7 +393,7 @@ for fp in os.listdir("."):
 		ol=None
 		cl=None
 		df=None
-		as_=False
+		as_=None
 		pl=[]
 		while (i<len(dt)):
 			i,e=_parse(dt,i)
@@ -391,7 +406,7 @@ for fp in os.listdir("."):
 				for k in e["children"]:
 					ol[k["data"][0]]={"id":k["data"][0],"type":k["name"],"name":k["data"][1],"children":k["children"]}
 					if (k["name"]=="AnimationStack"):
-						as_=True
+						as_=k["data"][0]
 					if (k["name"]=="Pose"):
 						pl+=[ol[k["data"][0]]]
 			elif (e["name"]=="Definitions"):
@@ -421,12 +436,13 @@ for fp in os.listdir("."):
 				if (e["data"][0] not in kn):
 					kn+=[e["data"][0]]
 					ch["children"]+=[e]
-		off=_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStart")[0]
-		if (as_==True):
+		off=([_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStart")[0],_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStop")[0]] if as_==None else [_get_prop70(_get_child(ol[as_],"Properties70"),"LocalStart")[0],_get_prop70(_get_child(ol[as_],"Properties70"),"LocalStop")[0]])
+		off[1]=_get_frame(off,off[1])
+		if (as_!=None):
 			with open(f"{fp[:-4]}.anm","wb") as f:
-				f.write(struct.pack(">H",_get_frame(off,_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStop")[0])))
+				f.write(struct.pack(">H",off[1]+1))
 				_write_anim(f,off,cl,ol,_get_refs(cl,ol,0))
+			continue
 		if (len(pl)>0):
 			with open(f"{fp[:-4]}.mdl","wb") as f:
 				_write_poses(f,cl,ol,pl)
-			os.system("xcopy *.mdl D:\\K\\Coding\\projects\\C-Graphics_Engine\\rsrc /Y")

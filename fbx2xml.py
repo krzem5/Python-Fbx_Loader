@@ -71,7 +71,7 @@ def parse(dt,i,f,il):
 		elif (at[-1]=="c"):
 			i,ad[j]=_r_arr(dt,i,"c")
 		else:
-			raise RuntimeError("AAA")
+			raise RuntimeError(at[-1])
 	f.write("\t"*il+f"<{t}")
 	if (pc>0):
 		f.write(f" type{('' if pc==1 else 's')}=\"{at}\"")
