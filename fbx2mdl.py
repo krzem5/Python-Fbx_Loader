@@ -127,6 +127,11 @@ def _get_refs(cl,ol,id_,k=None):
 
 
 
+def _name(nm):
+	return nm.split(" ")[-1][:-len(nm.split("::")[-1])-2]
+
+
+
 def _write_anim(f,off,cl,ol,m):
 	p=_get_prop70(_get_child(m,"Properties70"),"Lcl Translation")
 	r=_get_prop70(_get_child(m,"Properties70"),"Lcl Rotation")
@@ -165,14 +170,14 @@ def _write_anim(f,off,cl,ol,m):
 						j+=1
 				if (len(dt[("" if et=="Lcl Translation" else "r")+t[2].lower()])>1):
 					fl|=(1<<(ord(t[2].lower())-120+(0 if et=="Lcl Translation" else 3)))
-	nm=m["name"][:-len(m["name"].split("::")[-1])-2]
+	nm=_name(m["name"])
 	for k in ("rx","ry","rz"):
 		dt[k]=[e/180*math.pi for e in dt[k]]
 	for ek,ev in dt.items():
 		if (len(ev)!=1 and len(ev)!=off[1]+1):
 			print(len(ev),off[1])
 			raise RuntimeError
-	f.write(struct.pack(f">B{len(nm[:255])}sBB{sum([len(e) for e in dt.values()])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),fl,c,*dt["x"],*dt["y"],*dt["z"],*dt["rx"],*dt["ry"],*dt["rz"]))
+	f.write(struct.pack(f"<B{len(nm[:255])}sBB{sum([len(e) for e in dt.values()])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),fl,c,*dt["x"],*dt["y"],*dt["z"],*dt["rx"],*dt["ry"],*dt["rz"]))
 	for et,e in l:
 		if (e["type"]=="Model"):
 			_write_anim(f,off,cl,ol,e)
@@ -180,8 +185,6 @@ def _write_anim(f,off,cl,ol,m):
 
 
 def _write_poses(f,cl,ol,pl):
-	def _name(nm):
-		return nm.split(" ")[-1][:-len(nm.split("::")[-1])-2]
 	def _join(l,ch,k):
 		if (k in list(ch.keys())):
 			if ("children" not in list(l[k].keys())):
@@ -279,7 +282,7 @@ def _write_poses(f,cl,ol,pl):
 		return (l,ch,nr,g,m)
 	def _read_deform(cl,ol,l,k,i):
 		print(" "*i+f"Parsing Deform '{k['name']}'...")
-		l[_name(k["name"])]["deform"]={"data":([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1] if _get_child(k,"Transform")==None else _get_child(k,"Transform")["data"][0]),**({"indexes":_get_child(k,"Indexes")["data"][0],"weights":_get_child(k,"Weights")["data"][0]} if _get_child(k,"Indexes")!=None else {"indexes":[],"weights":[]})}
+		l[_name(k["name"])]["deform"]={"data":([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1] if _get_child(k,"TransformLink")==None else _get_child(k,"TransformLink")["data"][0]),**({"indexes":_get_child(k,"Indexes")["data"][0],"weights":_get_child(k,"Weights")["data"][0]} if _get_child(k,"Indexes")!=None else {"indexes":[],"weights":[]})}
 		if (k["id"] in list(cl.keys())):
 			for _,e in _get_refs(cl,ol,k["id"],-1):
 				if (e["type"]=="Deformer"):
@@ -289,7 +292,7 @@ def _write_poses(f,cl,ol,pl):
 				else:
 					raise RuntimeError(e["type"])
 		return l
-	def _write_mdl(f,k,i):
+	def _write_mdl(f,k,i,mp):
 		print(" "*i+f"Writing Model '{k['name']}' to File...")
 		if ("children" not in list(k.keys())):
 			k["children"]=[]
@@ -305,13 +308,21 @@ def _write_poses(f,cl,ol,pl):
 			k["drz"]=0
 		if ("mat" not in list(k.keys())):
 			k["mat"]=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]
+		ti=k["deform"]["indexes"][:]
+		tw=k["deform"]["weights"][:]
+		k["deform"]["indexes"]=[]
+		k["deform"]["weights"]=[]
+		for j,e in enumerate(ti):
+			k["deform"]["indexes"]+=mp[e]
+			k["deform"]["weights"]+=[tw[i]]*len(mp[e])
 		k["mat"]=[k["mat"][0],k["mat"][4],k["mat"][8],k["mat"][12],k["mat"][1],k["mat"][5],k["mat"][9],k["mat"][13],k["mat"][2],k["mat"][6],k["mat"][10],k["mat"][14],k["mat"][3],k["mat"][7],k["mat"][11],k["mat"][15]]
 		nm=_name(k["name"])
-		f.write(struct.pack(f">B{len(nm[:255])}sfB38fI{len(k['deform']['indexes'])}H{len(k['deform']['indexes'])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),k["len"],len(k["children"]),k["dx"],k["dy"],k["dz"],k["drx"],k["dry"],k["drz"],*k["mat"],*k["deform"]["data"],len(k["deform"]["indexes"]),*k["deform"]["indexes"],*k["deform"]["weights"]))
+		print(nm,len(k['deform']['indexes']))
+		f.write(struct.pack(f"<B{len(nm[:255])}sfB38fI{len(k['deform']['indexes'])}H{len(k['deform']['indexes'])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),k["len"],len(k["children"]),k["dx"],k["dy"],k["dz"],k["drx"],k["dry"],k["drz"],*k["mat"],*k["deform"]["data"],len(k["deform"]["indexes"]),*k["deform"]["indexes"],*k["deform"]["weights"]))
 		for e in k["children"]:
-			_write_mdl(f,e,i+2)
+			_write_mdl(f,e,i+2,mp)
 	print("Parsing Poses...")
-	f.write(struct.pack(">B",len(pl)))
+	f.write(struct.pack("<B",len(pl)))
 	for p in pl:
 		print(f"  Parsing Pose '{p['name']}'...")
 		l={}
@@ -349,11 +360,25 @@ def _write_poses(f,cl,ol,pl):
 		for k in [e for e in l.keys() if e not in nr]:
 			l=_join(l,ch,k)
 		l={k:v for k,v in l.items() if "len" in list(v.keys())}
+		######################################################################################################################
+		# def _rec(k):
+		# 	o=([k["name"]] if "deform" not in list(k.keys()) or len(k["deform"]["indexes"])==0 else [])
+		# 	if ("children" in list(k.keys())):
+		# 		for e in k["children"]:
+		# 			o+=_rec(e)
+		# 	return o
+		# _dnml=[]
+		# for k in l.values():
+		# 	_dnml+=_rec(k)
+		# print(_dnml)
+		# quit();
+		######################################################################################################################
 		print("    Preprocessing Verticies...")
 		dtl=[]
 		il=[]
 		vhl=[]
 		lp=-1
+		mp={}
 		for i,k in enumerate(g[3]):
 			if (i*100//len(g[3])>lp):
 				print(f"      {i*100//len(g[3])}% Complete ({len(dtl)//STRIDE}v, {len(il)//3}i)...")
@@ -369,15 +394,18 @@ def _write_poses(f,cl,ol,pl):
 			if (len(v)!=STRIDE):
 				raise RuntimeError(str(v))
 			if (hash(v) not in vhl):
+				if (k[0] not in list(mp.keys())):
+					mp[k[0]]=[]
 				dtl+=v
 				vhl+=[hash(v)]
+				mp[k[0]]+=[vhl.index(hash(v))]
 			il+=[vhl.index(hash(v))]
 		print(f"      100% Complete ({len(dtl)//STRIDE}v, {len(il)//3}i)...\n    Writing To File...")
 		nm=_name(p["name"])
-		f.write(struct.pack(f">B{len(nm)}sBII{len(dtl)+17}f{len(il)}H",len(nm),bytes(nm,"utf-8"),len(list(l.keys())),len(dtl)//STRIDE,len(il),*m["c"]["a"],*m["c"]["d"],*m["c"]["s"],m["df"],m["se"],*m["d"],*m["s"],*dtl,*il))
+		f.write(struct.pack(f"<B{len(nm)}sBII{len(dtl)+17}f{len(il)}H",len(nm),bytes(nm,"utf-8"),len(list(l.keys())),len(dtl)//STRIDE,len(il),*m["c"]["a"],*m["c"]["d"],*m["c"]["s"],m["df"],m["se"],*m["d"],*m["s"],*dtl,*il))
 		print("    Writing Models To File...")
 		for k in l.values():
-			_write_mdl(f,k,6)
+			_write_mdl(f,k,6,mp)
 
 
 
@@ -442,7 +470,6 @@ for fp in os.listdir("."):
 			with open(f"{fp[:-4]}.anm","wb") as f:
 				f.write(struct.pack(">H",off[1]+1))
 				_write_anim(f,off,cl,ol,_get_refs(cl,ol,0))
-			continue
 		if (len(pl)>0):
 			with open(f"{fp[:-4]}.mdl","wb") as f:
 				_write_poses(f,cl,ol,pl)
