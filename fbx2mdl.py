@@ -308,7 +308,7 @@ def _write_poses(f,cl,ol,pl):
 		k["deform"]["weights"]=[]
 		for j,e in enumerate(ti):
 			k["deform"]["indexes"]+=mp[e]
-			k["deform"]["weights"]+=[tw[i]]*len(mp[e])
+			k["deform"]["weights"]+=[tw[j]]*len(mp[e])
 		nm=_name(k["name"])
 		print(nm,len(k['deform']['indexes']))
 		f.write(struct.pack(f"<B{len(nm[:255])}sfB6fI{len(k['deform']['indexes'])}H{len(k['deform']['indexes'])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),k["len"],len(k["children"]),k["dx"],k["dy"],k["dz"],k["drx"],k["dry"],k["drz"],len(k["deform"]["indexes"]),*k["deform"]["indexes"],*k["deform"]["weights"]))
