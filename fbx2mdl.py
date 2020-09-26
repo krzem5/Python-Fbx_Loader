@@ -260,7 +260,7 @@ def _write_poses(f,cl,ol,pl):
 				if (m!=None):
 					raise RuntimeError("Duplicate Material!")
 				print(" "*bi+"Merging Data...")
-				m={"c":{"a":_get_prop70(_get_child(e,"Properties70"),"AmbientColor"),"d":_get_prop70(_get_child(e,"Properties70"),"DiffuseColor"),"s":_get_prop70(_get_child(e,"Properties70"),"SpecularColor")},"df":_get_prop70(_get_child(e,"Properties70"),"DiffuseFactor")[0],"se":_get_prop70(_get_child(e,"Properties70"),"ShininessExponent")[0]}
+				m={"c":{"a":_get_prop70(_get_child(e,"Properties70"),"AmbientColor"),"d":_get_prop70(_get_child(e,"Properties70"),"DiffuseColor"),"s":_get_prop70(_get_child(e,"Properties70"),"SpecularColor")},"se":_get_prop70(_get_child(e,"Properties70"),"ShininessExponent")[0]}
 			elif (e["type"]=="AnimationCurveNode"):
 				print(" "*bi+"Parsing Default Offsets...")
 				if (et=="Lcl Translation"):
@@ -380,7 +380,7 @@ def _write_poses(f,cl,ol,pl):
 			il+=[vhl.index(hash(v))]
 		print(f"      100% Complete ({len(dtl)//STRIDE}v, {len(il)//3}i)...\n    Writing To File...")
 		nm=_name(p["name"])
-		f.write(struct.pack(f"<B{len(nm)}sBII{len(dtl)+11}f{len(il)}H",len(nm),bytes(nm,"utf-8"),len(list(l.keys())),len(dtl)//STRIDE,len(il),*m["c"]["a"],*m["c"]["d"],*m["c"]["s"],m["df"],m["se"],*dtl,*il))
+		f.write(struct.pack(f"<B{len(nm)}sBII{len(dtl)+10}f{len(il)}H",len(nm),bytes(nm,"utf-8"),len(list(l.keys())),len(dtl)//STRIDE,len(il),*m["c"]["a"],*m["c"]["d"],*m["c"]["s"],m["se"],*dtl,*il))
 		print("    Writing Models To File...")
 		for k in l.values():
 			_write_mdl(f,k,6,mp)
