@@ -278,7 +278,7 @@ def _write_poses(f,cl,ol,pl):
 		return (l,ch,nr,g,m)
 	def _read_deform(cl,ol,l,k,i):
 		print(" "*i+f"Parsing Deform '{k['name']}'...")
-		l[_name(k["name"])]["deform"]=({"indexes":_get_child(k,"Indexes")["data"][0],"weights":_get_child(k,"Weights")["data"][0]} if _get_child(k,"Indexes")!=None else {"indexes":[],"weights":[]})
+		l[_name(k["name"])]["deform"]=({"data":_get_child(k,"Transform")["data"][0],"indexes":_get_child(k,"Indexes")["data"][0],"weights":_get_child(k,"Weights")["data"][0]} if _get_child(k,"Indexes")!=None else {"data":[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],"indexes":[],"weights":[]})
 		if (k["id"] in list(cl.keys())):
 			for _,e in _get_refs(cl,ol,k["id"],-1):
 				if (e["type"]=="Deformer"):
@@ -293,7 +293,7 @@ def _write_poses(f,cl,ol,pl):
 		if ("children" not in list(k.keys())):
 			k["children"]=[]
 		if ("deform" not in list(k.keys())):
-			k["deform"]={"indexes":[],"weights":[]}
+			k["deform"]={"data":[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],"indexes":[],"weights":[]}
 		if ("dx" not in list(k.keys())):
 			k["dx"]=0
 			k["dy"]=0
@@ -310,7 +310,7 @@ def _write_poses(f,cl,ol,pl):
 			k["deform"]["indexes"]+=mp[e]
 			k["deform"]["weights"]+=[tw[j]]*len(mp[e])
 		nm=_name(k["name"])
-		f.write(struct.pack(f"<B{len(nm[:255])}sfB6fI{len(k['deform']['indexes'])}H{len(k['deform']['indexes'])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),k["len"],len(k["children"]),k["dx"],k["dy"],k["dz"],k["drx"],k["dry"],k["drz"],len(k["deform"]["indexes"]),*k["deform"]["indexes"],*k["deform"]["weights"]))
+		f.write(struct.pack(f"<B{len(nm[:255])}sfB22fI{len(k['deform']['indexes'])}H{len(k['deform']['indexes'])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),k["len"],len(k["children"]),k["dx"],k["dy"],k["dz"],k["drx"],k["dry"],k["drz"],*k["deform"]["data"],len(k["deform"]["indexes"]),*k["deform"]["indexes"],*k["deform"]["weights"]))
 		for e in k["children"]:
 			_write_mdl(f,e,i+2,mp)
 	print("Parsing Poses...")
