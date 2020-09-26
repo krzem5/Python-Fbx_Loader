@@ -173,10 +173,6 @@ def _write_anim(f,off,cl,ol,m):
 	nm=_name(m["name"])
 	for k in ("rx","ry","rz"):
 		dt[k]=[e/180*math.pi for e in dt[k]]
-	for ek,ev in dt.items():
-		if (len(ev)!=1 and len(ev)!=off[1]+1):
-			print(len(ev),off[1])
-			raise RuntimeError
 	f.write(struct.pack(f"<B{len(nm[:255])}sBB{sum([len(e) for e in dt.values()])}f",len(nm[:255]),bytes(nm[:255],"utf-8"),fl,c,*dt["x"],*dt["y"],*dt["z"],*dt["rx"],*dt["ry"],*dt["rz"]))
 	for et,e in l:
 		if (e["type"]=="Model"):
