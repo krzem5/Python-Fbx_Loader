@@ -389,6 +389,8 @@ def _write_poses(f,cl,ol,pl):
 
 for fp in os.listdir("."):
 	if (fp[-4:]==".fbx"):
+		if (fp!="robot.fbx"):
+			continue
 		with open(fp,"rb") as f:
 			dt=f.read()
 		if (dt[:len(HEAD_MAGIC)]!=HEAD_MAGIC):
