@@ -1,6 +1,6 @@
+import json
 import os
 import struct
-import json
 import zlib
 
 

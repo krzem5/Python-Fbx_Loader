@@ -1,8 +1,8 @@
+import math
 import os
+import panda3d.core
 import struct
 import zlib
-import math
-import panda3d.core
 
 
 
