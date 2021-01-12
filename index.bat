@@ -1,3 +1,3 @@
 @echo off
 cls
-python index.py
+python src/fbx2mdl.py
