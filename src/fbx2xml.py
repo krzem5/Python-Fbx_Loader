@@ -84,7 +84,7 @@ def parse(dt,i,f,il):
 		f.write(">\n")
 		while (i<e-BLOCK_SENTINEL_LENGTH):
 			i=parse(dt,i,f,il+1)
-			if (i==None):
+			if (i is None):
 				raise RuntimeError("AAA")
 		f.write("\t"*il+f"</{t}>\n")
 		if (dt[i:i+BLOCK_SENTINEL_LENGTH]!=b"\x00"*BLOCK_SENTINEL_LENGTH):
@@ -110,6 +110,6 @@ for k in os.listdir("."):
 			i=len(HEAD_MAGIC)+4
 			while (i<len(dt)):
 				i=parse(dt,i,f,1)
-				if (i==None):
+				if (i is None):
 					break
 			f.write("</fbx>\n")

@@ -81,7 +81,7 @@ def parse(dt,i):
 		o["children"]=[]
 		while (i<e-BLOCK_SENTINEL_LENGTH):
 			i,el=parse(dt,i)
-			if (i==None):
+			if (i is None):
 				raise RuntimeError("AAA")
 			o["children"]+=[el]
 		if (dt[i:i+BLOCK_SENTINEL_LENGTH]!=b"\x00"*BLOCK_SENTINEL_LENGTH):
@@ -105,7 +105,7 @@ for k in os.listdir("."):
 			l=[]
 			while (i<len(dt)):
 				i,e=parse(dt,i)
-				if (i==None):
+				if (i is None):
 					break
 				l+=[e]
 			f.write(json.dumps(l,indent=4,sort_keys=False).replace("    ","\t"))

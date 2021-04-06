@@ -83,7 +83,7 @@ def _parse(dt,i):
 		o["children"]=[]
 		while (i<e-BLOCK_SENTINEL_LENGTH):
 			i,el=_parse(dt,i)
-			if (i==None):
+			if (i is None):
 				raise RuntimeError("AAA")
 			o["children"]+=[el]
 		if (dt[i:i+BLOCK_SENTINEL_LENGTH]!=b"\x00"*BLOCK_SENTINEL_LENGTH):
@@ -405,7 +405,7 @@ for fp in os.listdir("."):
 		pl=[]
 		while (i<len(dt)):
 			i,e=_parse(dt,i)
-			if (i==None):
+			if (i is None):
 				break
 			if (e["name"]=="GlobalSettings"):
 				gs=e
@@ -434,7 +434,7 @@ for fp in os.listdir("."):
 		for k,v in ol.items():
 			ch=_get_child(v,"Properties70")
 			kn=[]
-			if (ch==None):
+			if (ch is None):
 				v["children"]+=[{"name":"Properties70","children":[]}]
 				ch=v["children"][-1]
 			else:
@@ -444,7 +444,7 @@ for fp in os.listdir("."):
 				if (e["data"][0] not in kn):
 					kn+=[e["data"][0]]
 					ch["children"]+=[e]
-		off=([_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStart")[0],_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStop")[0]] if as_==None else [_get_prop70(_get_child(ol[as_],"Properties70"),"LocalStart")[0],_get_prop70(_get_child(ol[as_],"Properties70"),"LocalStop")[0]])
+		off=([_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStart")[0],_get_prop70(_get_child(gs,"Properties70"),"TimeSpanStop")[0]] if as_ is None else [_get_prop70(_get_child(ol[as_],"Properties70"),"LocalStart")[0],_get_prop70(_get_child(ol[as_],"Properties70"),"LocalStop")[0]])
 		off[1]=_get_frame(off,off[1])
 		if (as_!=None):
 			with open(f"{fp[:-4]}.anm","wb") as f:
